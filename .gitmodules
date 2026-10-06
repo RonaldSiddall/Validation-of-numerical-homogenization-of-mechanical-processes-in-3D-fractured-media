@@ -1,0 +1,4 @@
+[submodule "code/endorse"]
+	path = code/endorse
+	url = https://github.com/GeoMop/endorse.git
+	branch = RCS_elasticity

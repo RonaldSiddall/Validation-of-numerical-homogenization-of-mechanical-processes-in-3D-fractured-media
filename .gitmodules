@@ -2,3 +2,7 @@
 	path = code/endorse
 	url = https://github.com/GeoMop/endorse.git
 	branch = RCS_elasticity
+[submodule "code/bgem"]
+	path = code/bgem
+	url = https://github.com/GeoMop/bgem.git
+	branch = JB_homo

@@ -1,0 +1,155 @@
+# =================================================================================================
+# Masters_thesis config: what to run (section run) and all parameters of the simulations
+# Parameters copied from code/endorse/apps/upscale_m/configs/config_master.yaml (thesis_branch),
+# with the values of the full (original) task
+# =================================================================================================
+
+run:
+    # results go to runs/<name>/ (dns/, macro/), a copy of this file is saved there
+    name: full_01
+    # which simulations
+    #   dns:   the DNS (reference solution)
+    #   macro: micro problem + homogenization (elastic tensor per macro element) + macro problem
+    dns: true
+    macro: true
+    # which boundary conditions: [kubc, subc], [kubc] or [subc]
+    bc_types: [kubc, subc]
+    # which load cases of the DNS and of the macro problem: all, or a list, e.g. [E_11, S_12]
+    # (the micro problem always solves all 6 cases of each BC type, the tensor fit needs them)
+    cases: all
+
+machine_config:
+    # resolved automatically by socket.gethostname()
+    LAPTOP-MM6A3LRF:  # Ronald Siddall, Windows + Docker Desktop
+        flow_executable:
+        # docker wrapper around flow123d/ci-gnu:4.0.3dev_9e91fe; translates CWD to container path
+        - C:/Plocha/Masters_thesis/.venv/Scripts/python.exe
+        - C:/Plocha/Masters_thesis/code/endorse/apps/upscale_m/flow_win_wrapper.py
+
+geometry:
+    # Edge of the inner homogenization (averaging) cube [m].
+    L_inner: 10.0
+    # Outer cube edge = L_ext_factor * L_inner
+    L_ext_factor: 1.6
+    # Outer-boundary region names
+    boundary_regions: [.side_x0, .side_x1, .side_y0, .side_y1, .side_z0, .side_z1]
+    # SUBC only: edge length of the 3 support tetrahedra (as a fraction of L_inner)
+    support_fraction_d: 0.1
+
+    # Region names
+    bulk_region: box
+    fracture_region_prefix: fam_
+    support_region: support_tetras_volume
+
+fractures:
+    stochastic:
+        seed: 1234  # numpy global-generator seed used by bgem sampling
+        population:
+            fam_1:
+                strike: 28.219
+                dip: 23.856
+                concentration: 12.967
+                power: 2.7
+                r_0: 0.614
+                r_infty: 500
+                p_30: 0.1
+            # fam_2:
+            #     trend: 90.0
+            #     plunge: 0.0
+            #     concentration: 20
+            #     power: 3
+            #     r_0: 0.5
+            #     r_infty: 2.5
+            #     p_32: 2
+        # optional (bgem sizes): restrict generated sizes, Population.set_sample_range
+        sample_range: [0.625, 2.5]
+
+mesh:
+    # Base name of the generated mesh files
+    mesh_name: micro_mesh
+    fracture_mesh_step: 0.625
+    # CharacteristicLengthMin = fracture_mesh_step / mesh_size_min_fraction.
+    mesh_size_min_fraction: 3
+    # disc approximation: minimum number of boundary points per full circle (gmsh option
+    # Mesh.MinimumCirclePoints via bgem mesh options)
+    min_circle_points: 16
+    # minimum number of points per curved edge (gmsh option Mesh.MinimumCurvePoints via bgem
+    # mesh options).
+    min_curve_points: 6
+    tolerance: 1e-6
+    tolerance_boolean: 1e-5
+    tolerance_initial_delaunay: 0.01
+    heal_gamma_tol: 0.01
+
+materials:
+    young_modulus_rock: 1e9        # Pa
+    poisson_ratio_rock: 0.25
+    young_modulus_fracture: 1e3    # Pa
+    poisson_ratio_fracture: 0.25
+    # initial fracture thickness (cross_section): delta = aperture_per_r * r, where r is the radius
+    aperture_per_r: 1e-3
+
+loads:
+    output_fields_file: output/mechanics_fields.msh
+    stress_field_name: stress
+    region_id_field_name: region_id
+    # Outputs of the simulations are .msh files within the output/ folder (export_vtu: false)
+    # If export_vtu is set to "true", the DNS and macro outputs are ALSO converted to plain .vtu files
+    # (stress, region_id as cell data, displacement as point data, no derived fields)
+    export_vtu: true
+
+    input_template_kubc: mechanics_kubc_tmpl.yaml
+    input_template_subc: mechanics_subc_tmpl.yaml
+    # KUBC loading parameter beta (dimensionless) and SUBC parameter alpha [Pa]
+    deformation_parameter_beta: 1e-2
+    stress_parameter_alpha: 1e6
+
+    case_names_kubc: [E_11, E_22, E_33, E_23, E_13, E_12]
+    case_dir_names_kubc:
+        - kubc_normal_E_11
+        - kubc_normal_E_22
+        - kubc_normal_E_33
+        - kubc_shear_E_23
+        - kubc_shear_E_13
+        - kubc_shear_E_12
+    case_names_subc: [S_11, S_22, S_33, S_23, S_13, S_12]
+    case_dir_names_subc:
+        - subc_normal_S_11
+        - subc_normal_S_22
+        - subc_normal_S_33
+        - subc_shear_S_23
+        - subc_shear_S_13
+        - subc_shear_S_12
+
+# Macro (homogenized) mechanics model: coarse fracture-free tet mesh of the inner cube, one
+# effective elastic tensor per macro element
+mechanics_macroscale:
+    # file name of the generated coarse mesh, inside the run dir
+    mesh_file: macro_mesh.msh
+    # Six fields <prefix>0 .. <prefix>5, each a row-major 3x3 tensor: column k of the effective
+    # 6x6 tensor in Kelvin notation
+    tensor_field_name_prefix: stiffness_tensor_
+
+    # The material of the macro problem is given by the tensor field
+    # instead of young_modulus/poisson_ratio for the matrix and fractures (like in DNS or micro)
+    input_template_kubc: mechanics_macro_kubc_tmpl.yaml
+    input_template_subc: mechanics_macro_subc_tmpl.yaml
+
+    mesh_size_min_fraction: 3
+
+    mesh_step: 2.5
+    # per-element tensor field file (six 9-component Kelvin columns, endorse fields_file
+    # format: msh2 + vtu preview)
+    tensor_field_file: macro_elastic_tensor.msh2
+
+# DNS problem is the micro problem, with two things different:
+#   1. L_ext == L_inner (no buffer) - forced to 1 in code
+#   2. the product is the solved fields themselves (Flow123d .msh + plain .vtu per load case and
+#      BC type), not effective elastic tensors
+# The DNS builds its OWN MESH (its own element size below) but on the same rock... i.e. the DFN is
+# sampled in the inner cube, exactly as the micro problem samples it.
+# So the fractures inside the DNS cube ARE the fractures inside the micro problem's averaging cube
+dns:
+    mesh_step: 0.3
+    # base name for the DNS mesh files, must differ from mesh.mesh_name
+    mesh_name: dns_mesh

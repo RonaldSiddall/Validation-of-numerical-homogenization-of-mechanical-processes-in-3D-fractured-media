@@ -52,10 +52,11 @@ def selected_cases(cfg: dotdict, bc_type: str) -> List[Tuple[str, str, np.ndarra
 
 
 def _run_identity(config_file: Path) -> dict:
-    # the config as plain data without the run keys that only choose what to run (dns, macro, cases):
-    # changing those does not change the results already in a run dir
+    # the config as plain data without what does not change the results already in a run dir: the run
+    # keys that only choose what to run (dns, macro, cases) and machine_config (how Flow123d is started)
     data = yaml.safe_load(Path(config_file).read_text(encoding="utf-8"))
     data["run"] = {k: v for k, v in data["run"].items() if k not in ("dns", "macro", "cases")}
+    data.pop("machine_config", None)
     return data
 
 

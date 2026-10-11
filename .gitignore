@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+
+# PyCharm
+.idea/
+
+# virtual environment
+.venv/
+
+# results of the simulations (large, recomputed from configs/)
+runs/

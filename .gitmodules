@@ -1,7 +1,7 @@
 [submodule "code/endorse"]
 	path = code/endorse
-	url = https://github.com/GeoMop/endorse.git
-	branch = RCS_elasticity
+	url = https://github.com/RonaldSiddall/endorse.git
+	branch = thesis_branch
 [submodule "code/bgem"]
 	path = code/bgem
 	url = https://github.com/GeoMop/bgem.git

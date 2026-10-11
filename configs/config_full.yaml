@@ -5,8 +5,10 @@
 # =================================================================================================
 
 run:
-    # results go to runs/<name>/ (dns/, macro/), a copy of this file is saved there
+    # results go to <output_dir>/<name>/ (dns/, macro/), a copy of this file is saved there
     name: full_01
+    # folder for the results, relative to Masters_thesis
+    output_dir: runs
     # which simulations
     #   dns:   the DNS (reference solution)
     #   macro: micro problem + homogenization (elastic tensor per macro element) + macro problem

@@ -1,0 +1,20 @@
+# =================================================================================================
+# Config of scripts/macro_dns_error.py: which DNS and macro results to compare, where to write the errors
+# Run from Masters_thesis: python scripts/macro_dns_error.py configs/compare_summer.yaml
+# Paths are relative to Masters_thesis
+# =================================================================================================
+
+# the full task computed in summer 2026 (week 9 of the internship), old .vtu export
+# DNS results: <dns_run>/<bc>/<case>/dns_full.vtu
+dns_run: runs/original_summer_data/chain_dns
+# macro results: <macro_run>/macro_<bc>/<case>/macro_fields.vtu
+macro_run: runs/original_summer_data/chain
+# errors: <out>/<bc>/<case>/macro_dns_error.vtu, .txt and <out>/summary.csv
+out: runs/original_summer_data/comparison_errors_macro_dns
+
+# names of the fields in the .vtu files (the old export adds the suffix _macro)
+fields:
+    dns_stress: stress
+    dns_displacement: displacement
+    macro_stress: stress_macro
+    macro_displacement: displacement_macro

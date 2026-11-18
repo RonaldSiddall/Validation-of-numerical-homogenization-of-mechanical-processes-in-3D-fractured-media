@@ -21,8 +21,9 @@ def run_dns(cfg: dotdict, run_dir: Path):
     types = bc_types(cfg)
     with workdir(run_dir / "dns"):
         print("=== DNS: mesh ===", flush=True)
-        # SUBC needs the rigid-body support tetrahedra built into the mesh
-        mesh = make_dns_mesh(cfg, work_dir=".", subc_support="subc" in types)
+        # the rigid-body support tetrahedra of SUBC are built into the mesh ALWAYS, whatever the BC types (as in
+        # run_macro): KUBC and SUBC then always run on the same mesh; KUBC does not use them
+        mesh = make_dns_mesh(cfg, work_dir=".", subc_support=True)
         for bc_type in types:
             for name, dir_name, load in selected_cases(cfg, bc_type):
                 print(f"=== DNS: {bc_type.upper()} case {name} ===", flush=True)

@@ -4,7 +4,7 @@ model, i.e. the micro problem, the homogenization and the macro problem (run.mac
 
     python scripts/main.py configs/config_test.yaml
 
-Results: <run.output_dir>/<run.name>/ with a copy of the config, dns/ and macro/.
+Results: <run.output_dir>/<run.name>/ with a copy of the config, dns/ and micro_macro/ (micro/ and macro/).
 """
 import sys
 from pathlib import Path

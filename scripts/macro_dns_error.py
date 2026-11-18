@@ -3,8 +3,8 @@ Error of the homogenized macro solution against the DNS reference, PyVista.
 
 Each field is compared where Flow123d computes it, by a 1:1 copy of the ParaView pipeline used so far.
 
-Output per load case: macro_dns_error.vtu (the DNS mesh with stress_error, displacement_error and the
-other error fields) and macro_dns_error.txt (the errors and statistics); all load cases of a config also
+Output per load case: eff_vs_detailed_error.vtu (the DNS mesh with stress_error, displacement_error and the
+other error fields) and eff_vs_detailed_error.txt (the errors and statistics); all load cases of a config also
 give summary.csv.
 
 Usage:
@@ -274,56 +274,81 @@ def compare(dns_vtu: Path, macro_vtu: Path, out_dir: Path, dns_stress="stress", 
         out.point_data[name][dns_point] = values
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    out.save(out_dir / "macro_dns_error.vtu")
-    (out_dir / "macro_dns_error.txt").write_text(report(results))
+    out.save(out_dir / "eff_vs_detailed_error.vtu")
+    (out_dir / "eff_vs_detailed_error.txt").write_text(report(results))
     return results
 
 
+
+RULE = "=" * 64
+THESIS_DIR = Path(__file__).resolve().parents[1]
+
+
+LABEL = 72
+
+
+def rel_path(p) -> str:
+    # a path relative to Masters_thesis (as given if outside it)
+    p = Path(p).resolve()
+    return p.relative_to(THESIS_DIR).as_posix() if p.is_relative_to(THESIS_DIR) else str(p)
+
+
+def distribution(q: dict, d: dict) -> list:
+    # the distribution of an error over the cells or nodes (each counts once, not weighted by its size)
+    rows = [("n", f"{d['Cardinality']}"), ("min", q["min"]), ("q1", q["q1"]), ("median", q["median"]),
+            ("q3", q["q3"]), ("max", q["max"]), ("mean", d["Mean"]), ("standard deviation", d["Standard Deviation"]),
+            ("skewness", d["Skewness"]), ("kurtosis", d["Kurtosis"])]
+    return [f"  {k:<{LABEL - 2}}{v if isinstance(v, str) else f'{v:.6g}'}" for k, v in rows]
+
+
 def report(r: dict) -> str:
+    # the effective model = the former macro problem, the detailed model = the former DNS (Stebel's terminology)
     s, u = r["stress"], r["displacement"]
-    stats = lambda q, d: [*(f"  {k:<34s} {v:.15g}" for k, v in q.items()),
-                          *(f"  {k:<34s} {v:.6g}" for k, v in d.items())]
+    row = lambda label, value: f"{label:<{LABEL}}{value}"
     lines = [
-        "Macro vs DNS error",
-        f"DNS                {r['dns']}",
-        f"macro              {r['macro']}",
+        RULE, "MODEL COMPARISON: Effective vs. Detailed (reference: Detailed model)",
+        "METRIC: Stress and Displacement Error", RULE,
+        row("Detailed model input", rel_path(r["dns"])),
+        row("Effective model input", rel_path(r["macro"])),
         "",
-        "STRESS (method A, DNS cell centroids)",
-        f"  DNS cells                          {r['cells']}",
-        f"  centroids outside the macro mesh   {s['points_invalid']}",
-        f"  centroids compared                 {s['points_valid']}",
-        f"  Volume_total                       {s['Volume_total']:.10g}",
-        f"  dsL2                               {s['dsL2']:.7f} %",
-        "  ds_percent <= p: cells N, volume share V",
-        *(f"  N{t:<4g}{s[f'N{t:g}']:>12d}     V{t:<4g}{s[f'V{t:g}']:12.4f} %" for t in THRESHOLDS),
-        "  ds_percent: quartiles and descriptive statistics (per cell)",
-        *stats(s["quartiles"], s["descriptive_statistics"]),
+        RULE, "STRESS COMPARISON: Done in element centroids",
+        "-> Data evaluated strictly as CellData",
+        "-> No interpolation to PointData (no nodal averaging)", RULE,
+        row("Detailed model cells compared (centroid in the effective model mesh)",
+            f"{s['points_valid']} of {r['cells']}"),
+        row("volume of the compared Detailed model cells [m^3]", f"{s['Volume_total']:.10g}"),
+        row("dsL2 [%]", f"{s['dsL2']:.7f}"),
         "",
-        "DISPLACEMENT (week 9, DNS nodes)",
-        f"  DNS nodes                          {u['nodes']}",
-        f"  nodes with vtkValidPointMask = 1   {u['nodes_mask_valid']}",
-        f"  nodes dropped by ValidPoints       {u['nodes_dropped']}",
-        f"  nodes compared (after ValidPoints) {u['nodes_valid']}",
-        f"  max |u_DNS|                        {u['u_max_dns']:.10g}",
-        f"  integral du2                       {u['int_du2']:.10g}",
-        f"  integral u2                        {u['int_u2']:.10g}",
-        f"  duL2                               {u['duL2']:.7f} %",
-        "  du_percent <= p: nodes M, node share P",
-        *(f"  M{t:<4g}{u[f'M{t:g}']:>12d}     P{t:<4g}{u[f'P{t:g}']:12.4f} %" for t in THRESHOLDS),
-        "  du_percent: quartiles and descriptive statistics (per node)",
-        *stats(u["quartiles"], u["descriptive_statistics"]),
+        *(row(f"cells with ds_percent <= {t:g} %", f"{s[f'N{t:g}']:>8d} cells, {s[f'V{t:g}']:8.4f} % of the volume")
+          for t in THRESHOLDS),
+        "",
+        "ds_percent [%] over the Detailed model cells (each cell counts once)",
+        *distribution(s["quartiles"], s["descriptive_statistics"]),
+        "",
+        RULE, "DISPLACEMENT COMPARISON: Done in element nodes",
+        "-> Data evaluated strictly as PointData (the nodes of the Detailed model elements)",
+        "-> Effective model displacement interpolated linearly inside its elements to these nodes", RULE,
+        row("Detailed model nodes compared (in the effective model mesh)", f"{u['nodes_valid']} of {u['nodes']}"),
+        row("duL2 [%]", f"{u['duL2']:.7f}"),
+        "",
+        *(row(f"nodes with du_percent <= {t:g} %", f"{u[f'M{t:g}']:>8d} nodes, {u[f'P{t:g}']:8.4f} % of the nodes")
+          for t in THRESHOLDS),
+        "",
+        "du_percent [%] over the Detailed model nodes (each node counts once)",
+        *distribution(u["quartiles"], u["descriptive_statistics"]),
     ]
     return "\n".join(lines) + "\n"
 
 
 # ============================================================================ all load cases
 
-def run_batch(dns_run: Path, macro_run: Path, out_root: Path, **kw):
+def run_batch(dns_run: Path, macro_run: Path, out_root: Path, macro_case_dir: str = "{bc}", **kw):
+    # macro_case_dir: the folder of the macro load cases of one BC type inside macro_run, {bc} = kubc / subc
     rows = []
     for bc in ("kubc", "subc"):
         for case_dir in sorted(p for p in (dns_run / bc).glob("*") if p.is_dir()):
             dns_vtu = case_dir / "dns_full.vtu"
-            macro_vtu = macro_run / f"macro_{bc}" / case_dir.name / "macro_fields.vtu"
+            macro_vtu = macro_run / macro_case_dir.format(bc=bc) / case_dir.name / "macro_fields.vtu"
             if not (dns_vtu.is_file() and macro_vtu.is_file()):
                 print(f"skip {bc}/{case_dir.name}: missing {dns_vtu if not dns_vtu.is_file() else macro_vtu}")
                 continue
@@ -350,6 +375,7 @@ def run_config(config_file: Path):
     thesis_dir = Path(__file__).resolve().parents[1]
     fields = cfg["fields"]
     run_batch(thesis_dir / cfg["dns_run"], thesis_dir / cfg["macro_run"], thesis_dir / cfg["out"],
+              macro_case_dir=str(cfg.get("macro_case_dir", "{bc}")),
               dns_stress=fields["dns_stress"], macro_stress=fields["macro_stress"],
               dns_disp=fields["dns_displacement"], macro_disp=fields["macro_displacement"])
 
